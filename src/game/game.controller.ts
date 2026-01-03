@@ -26,6 +26,19 @@ export class GameController {
   }
 
   /**
+   * GET /games/code/:code
+   * Récupère une partie par son code privé
+   */
+  @Get('code/:code')
+  async getGameByPrivateCode(@Param('code') code: string) {
+    const game = await this.gameService.getGameByPrivateCode(code);
+    if (!game) {
+      return { error: 'Partie introuvable', success: false };
+    }
+    return { data: game, success: true };
+  }
+
+  /**
    * GET /games/player/:playerId/history
    * Récupère l'historique des parties d'un joueur
    */
@@ -45,13 +58,17 @@ export class GameController {
 
   /**
    * POST /games/create
-   * Crée une nouvelle partie
-   * Body: { player1Id: number }
+   * Crée une nouvelle partie (publique ou privée)
+   * Body: { player1Id: number, isPrivate?: boolean }
    */
   @Post('create')
-  async createGame(@Body() body: { player1Id: number }) {
+  async createGame(@Body() body: { player1Id: number; isPrivate?: boolean }) {
     // Génère un roomId unique
     const roomId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-    return await this.gameService.createGame(body.player1Id, roomId);
+    return await this.gameService.createGame(
+      body.player1Id,
+      roomId,
+      body.isPrivate ?? false,
+    );
   }
 }

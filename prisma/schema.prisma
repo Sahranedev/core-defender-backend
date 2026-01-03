@@ -28,6 +28,10 @@ model Game {
   winnerId  Int? // Null tant que la partie est en cours
   status    String @default("waiting")
 
+  // Système de parties privées
+  isPrivate   Boolean @default(false)
+  privateCode String? @unique // Code court pour rejoindre (ex: "ABC123")
+
   // Statistiques optionnelles (bonus pour le futur)
   duration       Int? // en secondes
   player1FinalHP Int? // HP restants du core

@@ -23,7 +23,6 @@ import { GAME_TEMPLATES } from './constants/templates';
 export class GameGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  // ← MODIF
   @WebSocketServer()
   server: Server;
 
@@ -36,6 +35,22 @@ export class GameGateway
 
   // Timeout de déconnexion en millisecondes (10 secondes)
   private readonly DISCONNECT_TIMEOUT = 10000;
+
+  /**
+   * Vérifie si un joueur est actuellement connecté à une room
+   */
+  private isPlayerConnected(roomId: string, userId: number): boolean {
+    for (const [, connection] of this.playerConnections) {
+      if (connection.roomId === roomId && connection.userId === userId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Intervalle de nettoyage des parties orphelines (30 secondes)
+  private readonly CLEANUP_INTERVAL = 30000;
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private gameService: GameService,
@@ -70,8 +85,8 @@ export class GameGateway
       return;
     }
 
-    // CAS 1: Partie en attente (le créateur part avant qu'un adversaire ne rejoigne)
-    if (game.status === 'waiting') {
+    // CAS 1: Partie PUBLIQUE en attente → annulation immédiate
+    if (game.status === 'waiting' && !game.isPrivate) {
       await this.gameService.cancelGame(game.id);
 
       // Notifie tous les clients que la partie est annulée (pour mettre à jour la liste)
@@ -81,7 +96,37 @@ export class GameGateway
       return;
     }
 
-    // CAS 2: Partie en cours → Timer de reconnexion de 10 secondes
+    // CAS 2: Partie PRIVÉE en attente → Timer de 2 minutes pour laisser le temps de partager le code
+    if (game.status === 'waiting' && game.isPrivate) {
+      const timerKey = `${roomId}-${userId}`;
+      const PRIVATE_GAME_TIMEOUT = 120000; // 2 minutes
+
+      console.log(
+        `⏳ Partie privée ${game.roomId} - créateur déconnecté. Annulation dans 2 minutes...`,
+      );
+
+      const timer = setTimeout(() => {
+        void (async () => {
+          const currentGame = await this.gameService.getGameByRoomId(roomId);
+          if (!currentGame || currentGame.status !== 'waiting') return;
+
+          await this.gameService.cancelGame(currentGame.id);
+          this.server.emit('game:roomCancelled', {
+            roomId: currentGame.roomId,
+          });
+
+          console.log(`🧹 Partie privée ${roomId} annulée après timeout`);
+
+          this.playerConnections.delete(client.id);
+          this.disconnectionTimers.delete(timerKey);
+        })();
+      }, PRIVATE_GAME_TIMEOUT);
+
+      this.disconnectionTimers.set(timerKey, timer);
+      return;
+    }
+
+    // CAS 3: Partie en cours → Timer de reconnexion de 10 secondes
     const timerKey = `${roomId}-${userId}`;
 
     this.server.to(roomId).emit('game:playerDisconnected', {
@@ -122,6 +167,52 @@ export class GameGateway
   afterInit(server: Server) {
     this.gameEngine.setServer(server);
     console.log('WebSocket Gateway initialisé');
+
+    // Démarre le nettoyage périodique des parties orphelines
+    this.startCleanupTask();
+  }
+
+  /**
+   * Démarre la tâche périodique de nettoyage des parties orphelines
+   */
+  private startCleanupTask() {
+    this.cleanupTimer = setInterval(() => {
+      void this.cleanupOrphanedGames();
+    }, this.CLEANUP_INTERVAL);
+
+    console.log(
+      `🧹 Tâche de nettoyage démarrée (intervalle: ${this.CLEANUP_INTERVAL / 1000}s)`,
+    );
+  }
+
+  /**
+   * Nettoie les parties en attente dont le créateur n'est plus connecté
+   */
+  private async cleanupOrphanedGames() {
+    try {
+      const waitingGames = await this.gameService.getAvailableGames();
+
+      for (const game of waitingGames) {
+        const isCreatorConnected = this.isPlayerConnected(
+          game.roomId,
+          game.player1Id,
+        );
+
+        if (!isCreatorConnected) {
+          console.log(
+            `🧹 Nettoyage partie orpheline: ${game.roomId} (créateur ${game.player1Id} déconnecté)`,
+          );
+
+          await this.gameService.cancelGame(game.id);
+          this.server.emit('game:roomCancelled', { roomId: game.roomId });
+        }
+      }
+    } catch (error) {
+      console.error(
+        '❌ Erreur lors du nettoyage des parties orphelines:',
+        error,
+      );
+    }
   }
 
   @SubscribeMessage('game:createRoom')
@@ -149,7 +240,11 @@ export class GameGateway
 
     console.log(`Joueur ${data.userId} a créé la room ${game.roomId}`);
 
-    this.server.emit('game:roomCreated', { roomId: game.roomId, game });
+    // N'émet l'événement roomCreated que pour les parties PUBLIQUES
+    // Les parties privées ne doivent pas apparaître dans la liste des autres joueurs
+    if (!game.isPrivate) {
+      this.server.emit('game:roomCreated', { roomId: game.roomId, game });
+    }
   }
 
   @SubscribeMessage('game:joinRoom')
@@ -176,6 +271,28 @@ export class GameGateway
       client.emit('game:error', {
         message: 'Vous ne pouvez pas rejoindre votre propre partie',
       });
+      return;
+    }
+
+    // Vérifie si le créateur (player1) est toujours connecté
+    const isCreatorConnected = this.isPlayerConnected(
+      game.roomId,
+      game.player1Id,
+    );
+
+    if (!isCreatorConnected) {
+      // Le créateur n'est plus connecté, on annule la partie
+      await this.gameService.cancelGame(game.id);
+      this.server.emit('game:roomCancelled', { roomId: game.roomId });
+
+      client.emit('game:error', {
+        message:
+          "Le créateur de cette partie n'est plus connecté. La partie a été annulée.",
+      });
+
+      console.log(
+        `⚠️ Partie ${game.roomId} annulée - créateur déconnecté lors de la tentative de join`,
+      );
       return;
     }
 

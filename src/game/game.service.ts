@@ -6,14 +6,30 @@ export class GameService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Génère un code privé court et unique (6 caractères)
+   */
+  private generatePrivateCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Sans I, O, 0, 1 pour éviter confusion
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  /**
    * Crée une nouvelle partie en attente d'un adversaire
    */
-  async createGame(player1Id: number, roomId: string) {
+  async createGame(player1Id: number, roomId: string, isPrivate = false) {
+    const privateCode = isPrivate ? this.generatePrivateCode() : null;
+
     return await this.prisma.game.create({
       data: {
         roomId,
         player1Id,
         status: 'waiting',
+        isPrivate,
+        privateCode,
       },
       include: {
         player1: {
@@ -29,12 +45,13 @@ export class GameService {
   }
 
   /**
-   * Récupère toutes les parties en attente d'un joueur
+   * Récupère toutes les parties PUBLIQUES en attente d'un joueur
    */
   async getAvailableGames() {
     return await this.prisma.game.findMany({
       where: {
         status: 'waiting',
+        isPrivate: false, // Uniquement les parties publiques
       },
       include: {
         player1: {
@@ -48,6 +65,33 @@ export class GameService {
       },
       orderBy: {
         createdAt: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Récupère une partie par son code privé
+   */
+  async getGameByPrivateCode(privateCode: string) {
+    return await this.prisma.game.findUnique({
+      where: { privateCode: privateCode.toUpperCase() },
+      include: {
+        player1: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+          },
+        },
+        player2: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true,
+          },
+        },
       },
     });
   }

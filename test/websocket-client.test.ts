@@ -1,7 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 
 // Configuration de la connexion
-const SOCKET_URL = 'http://localhost:3000';
+const SOCKET_URL =
+  process.env.SOCKET_URL || process.env.API_URL || 'http://localhost:3000';
 
 // Création du client avec typage
 const socket: Socket = io(SOCKET_URL);
