@@ -7,8 +7,7 @@ import {
   DefenseType,
   ProjectileType,
 } from './constants/templates';
-
-// Types pour l'état du jeu en mémoire
+import { GameService } from './game.service';
 
 interface Player {
   id: number;
@@ -25,6 +24,7 @@ interface Defense {
   y: number;
   hp: number;
   createdAt: number;
+  lastFired?: number;
 }
 
 interface Projectile {
@@ -49,24 +49,21 @@ interface GameState {
   projectiles: Projectile[];
   startTime: number;
   lastUpdate: number;
+  lastResourceGeneration: number;
 }
 
 @Injectable()
 export class GameEngineService {
-  // Map pour stocker l'état de toutes les parties en cours
-  // Key = roomId, Value = GameState
   private games: Map<string, GameState> = new Map();
 
-  // Référence au serveur WebSocket (sera injectée depuis le Gateway)
   private server: Server;
+
+  constructor(private gameService: GameService) {}
 
   setServer(server: Server) {
     this.server = server;
   }
 
-  /**
-   * Initialise une nouvelle partie en mémoire
-   */
   initializeGame(
     roomId: string,
     gameId: number,
@@ -84,7 +81,7 @@ export class GameEngineService {
             id: player1Id,
             resources: GAME_CONFIG.INITIAL_RESOURCES,
             coreHP: GAME_CONFIG.CORE_HP,
-            corePosition: { x: 100, y: GAME_CONFIG.BOARD_HEIGHT / 2 },
+            corePosition: { x: 120, y: GAME_CONFIG.BOARD_HEIGHT / 2 },
           },
         ],
         [
@@ -94,7 +91,7 @@ export class GameEngineService {
             resources: GAME_CONFIG.INITIAL_RESOURCES,
             coreHP: GAME_CONFIG.CORE_HP,
             corePosition: {
-              x: GAME_CONFIG.BOARD_WIDTH - 100,
+              x: GAME_CONFIG.BOARD_WIDTH - 120,
               y: GAME_CONFIG.BOARD_HEIGHT / 2,
             },
           },
@@ -104,20 +101,17 @@ export class GameEngineService {
       projectiles: [],
       startTime: Date.now(),
       lastUpdate: Date.now(),
+      lastResourceGeneration: Date.now(),
     };
 
     this.games.set(roomId, gameState);
 
-    // Lance le game loop pour cette partie
     this.startGameLoop(roomId);
 
     console.log(`Partie ${roomId} initialisée`);
     return gameState;
   }
 
-  /**
-   * Place une défense pour un joueur
-   */
   placeDefense(
     roomId: string,
     playerId: number,
@@ -134,7 +128,24 @@ export class GameEngineService {
     const template = DEFENSE_TEMPLATES[defenseType];
     if (!template) return { success: false, error: 'Type de défense invalide' };
 
-    // Vérifie les ressources
+    // Validation de la zone de placement
+    const isPlayer1 = player.corePosition.x < GAME_CONFIG.BOARD_WIDTH / 2;
+    const ZONE_PLAYER1_END = 480;
+    const ZONE_PLAYER2_START = 620;
+
+    if (isPlayer1 && x > ZONE_PLAYER1_END) {
+      return {
+        success: false,
+        error: 'Vous ne pouvez placer que dans votre zone',
+      };
+    }
+    if (!isPlayer1 && x < ZONE_PLAYER2_START) {
+      return {
+        success: false,
+        error: 'Vous ne pouvez placer que dans votre zone',
+      };
+    }
+
     if (player.resources < template.cost) {
       return { success: false, error: 'Ressources insuffisantes' };
     }
@@ -142,28 +153,24 @@ export class GameEngineService {
     // Déduit les ressources
     player.resources -= template.cost;
 
-    // Crée la défense
     const defense: Defense = {
-      id: `defense-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `defense-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       type: defenseType,
       playerId,
       x,
       y,
       hp: template.hp,
       createdAt: Date.now(),
+      lastFired: defenseType === 'TURRET' ? Date.now() : undefined, // Initialise le timer pour les tourelles
     };
 
     game.defenses.push(defense);
 
-    // Broadcast l'état mis à jour
     this.broadcastGameState(roomId);
 
     return { success: true };
   }
 
-  /**
-   * Lance un projectile vers l'adversaire
-   */
   launchProjectile(
     roomId: string,
     playerId: number,
@@ -184,25 +191,22 @@ export class GameEngineService {
     if (!template)
       return { success: false, error: 'Type de projectile invalide' };
 
-    // Vérifie les ressources
     if (player.resources < template.cost) {
       return { success: false, error: 'Ressources insuffisantes' };
     }
 
-    // Déduit les ressources
     player.resources -= template.cost;
 
-    // Position de départ (depuis le core de l'attaquant)
+    // Position de départ notre core
     const startX = player.corePosition.x;
     const startY = player.corePosition.y;
 
-    // Position cible (le core de l'adversaire)
+    // Position du core adverse
     const targetX = targetPlayer.corePosition.x;
     const targetY = targetPlayer.corePosition.y;
 
-    // Crée le projectile
     const projectile: Projectile = {
-      id: `projectile-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `projectile-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       type: projectileType,
       playerId,
       targetPlayerId,
@@ -223,65 +227,58 @@ export class GameEngineService {
     return { success: true };
   }
 
-  /**
-   * Game Loop - S'exécute à 60 FPS pour chaque partie
-   */
   private startGameLoop(roomId: string) {
     const FPS = 60;
-    const FRAME_TIME = 1000 / FPS; // ~16.67ms
+    const FRAME_TIME = 1000 / FPS;
 
     const loop = () => {
       const game = this.games.get(roomId);
 
-      // Si la partie n'existe plus ou est terminée, arrête la boucle
       if (!game || game.status === 'finished') {
         return;
       }
 
-      // Met à jour le jeu
       this.updateGame(roomId);
 
-      // Broadcast l'état aux clients
       this.broadcastGameState(roomId);
 
-      // Planifie la prochaine frame
       setTimeout(loop, FRAME_TIME);
     };
 
-    // Démarre la boucle
     loop();
   }
 
-  /**
-   * Met à jour l'état du jeu (déplacement des projectiles, collisions, etc.)
-   */
   private updateGame(roomId: string) {
     const game = this.games.get(roomId);
     if (!game) return;
 
     const now = Date.now();
-    const deltaTime = now - game.lastUpdate;
     game.lastUpdate = now;
 
-    // Met à jour les projectiles
+    // Régénération passive de ressources par secondes
+    if (now - game.lastResourceGeneration >= 1000) {
+      game.players.forEach((player) => {
+        player.resources += 200;
+      });
+      game.lastResourceGeneration = now;
+    }
+
+    this.updateTurrets(game);
+
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
       const projectile = game.projectiles[i];
 
-      // Calcule la direction du mouvement
       const dx = projectile.targetX - projectile.x;
       const dy = projectile.targetY - projectile.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      // Si le projectile a atteint sa cible
       if (distance < projectile.speed) {
-        // Applique les dégâts au core
         this.applyDamageToCore(
           game,
           projectile.targetPlayerId,
           projectile.damage,
         );
 
-        // Retire le projectile
         game.projectiles.splice(i, 1);
         continue;
       }
@@ -302,8 +299,84 @@ export class GameEngineService {
   }
 
   /**
-   * Vérifie la collision entre un projectile et les défenses
+   * Met à jour les tourelles (tir automatique)
+   * Priorité de ciblage : Tourelles ennemies > Core ennemi
    */
+  private updateTurrets(game: GameState) {
+    const now = Date.now();
+
+    game.defenses.forEach((turret) => {
+      if (turret.type !== 'TURRET') return;
+
+      const template = DEFENSE_TEMPLATES.TURRET;
+
+      // Vérifie si la tourelle peut tirer (cooldown)
+      if (now - (turret.lastFired || 0) < template.fireRate) return;
+
+      // PRIORITÉ 1 : Cherche une tourelle ennemie à portée
+      let targetX: number | null = null;
+      let targetY: number | null = null;
+      let targetPlayerId: number | null = null;
+      let minDistance = Infinity;
+
+      // Parcourt les tourelles ennemies
+      for (const defense of game.defenses) {
+        if (defense.type !== 'TURRET') continue;
+        if (defense.playerId === turret.playerId) continue; // Ignore nos propres tourelles
+
+        const dx = defense.x - turret.x;
+        const dy = defense.y - turret.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance <= template.range && distance < minDistance) {
+          minDistance = distance;
+          targetX = defense.x;
+          targetY = defense.y;
+          targetPlayerId = defense.playerId;
+        }
+      }
+
+      // PRIORITÉ 2 : Si pas de tourelle ennemie, cible le core ennemi
+      if (targetX === null) {
+        const enemyPlayers = Array.from(game.players.values()).filter(
+          (p) => p.id !== turret.playerId,
+        );
+
+        for (const enemy of enemyPlayers) {
+          const dx = enemy.corePosition.x - turret.x;
+          const dy = enemy.corePosition.y - turret.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance <= template.range && distance < minDistance) {
+            minDistance = distance;
+            targetX = enemy.corePosition.x;
+            targetY = enemy.corePosition.y;
+            targetPlayerId = enemy.id;
+          }
+        }
+      }
+
+      // Tire si une cible a été trouvée
+      if (targetX !== null && targetY !== null && targetPlayerId !== null) {
+        const projectile: Projectile = {
+          id: `turret-projectile-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          type: 'BASIC',
+          playerId: turret.playerId,
+          targetPlayerId,
+          x: turret.x,
+          y: turret.y,
+          targetX,
+          targetY,
+          speed: 5,
+          damage: template.damage,
+        };
+
+        game.projectiles.push(projectile);
+        turret.lastFired = now;
+      }
+    });
+  }
+
   private checkProjectileDefenseCollision(
     game: GameState,
     projectile: Projectile,
@@ -315,20 +388,40 @@ export class GameEngineService {
       // Le projectile ne collisionne qu'avec les défenses du joueur adverse
       if (defense.playerId === projectile.playerId) continue;
 
-      // Calcule la distance entre le projectile et la défense
-      const dx = projectile.x - defense.x;
-      const dy = projectile.y - defense.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
       const template = DEFENSE_TEMPLATES[defense.type];
 
-      // Collision détectée (approximation simple avec un cercle)
-      if (distance < template.width / 2) {
-        // Applique les dégâts à la défense
+      // Utilise une hitbox carrée pour une meilleure détection
+      const halfWidth = template.width / 2;
+      const halfHeight = template.height / 2;
+
+      // Vérifie si le projectile est dans la zone de la défense
+      const inXRange =
+        projectile.x >= defense.x - halfWidth &&
+        projectile.x <= defense.x + halfWidth;
+      const inYRange =
+        projectile.y >= defense.y - halfHeight &&
+        projectile.y <= defense.y + halfHeight;
+
+      if (inXRange && inYRange) {
         defense.hp -= projectile.damage;
+
+        console.log(
+          `💥 Collision! Projectile de ${projectile.playerId} touche défense ${defense.type} (${defense.hp} HP restants)`,
+        );
 
         // Si la défense est détruite
         if (defense.hp <= 0) {
+          console.log(`💀 Défense ${defense.type} détruite!`);
+
+          // Récompense le joueur attaquant avec +50 ressources
+          const attacker = game.players.get(projectile.playerId);
+          if (attacker) {
+            attacker.resources += 50;
+            console.log(
+              `💰 Joueur ${projectile.playerId} gagne 50 ressources (total: ${attacker.resources})`,
+            );
+          }
+
           game.defenses.splice(i, 1);
         }
 
@@ -367,14 +460,30 @@ export class GameEngineService {
     }
   }
 
-  /**
-   * Termine la partie
-   */
   private endGame(game: GameState, winnerId: number) {
     game.status = 'finished';
 
     const duration = Math.floor((Date.now() - game.startTime) / 1000);
     const players = Array.from(game.players.values());
+
+    // Met à jour le statut en base de données
+    this.gameService
+      .finishGame(
+        game.gameId,
+        winnerId,
+        duration,
+        players[0].coreHP,
+        players[1].coreHP,
+      )
+      .then(() => {
+        console.log(`✅ Partie ${game.roomId} enregistrée en BDD`);
+      })
+      .catch((error) => {
+        console.error(
+          `❌ Erreur lors de l'enregistrement de la partie ${game.roomId}:`,
+          error,
+        );
+      });
 
     // Notifie tous les clients
     this.server.to(game.roomId).emit('game:end', {
@@ -386,7 +495,7 @@ export class GameEngineService {
       },
     });
 
-    console.log(`Partie ${game.roomId} terminée. Gagnant : ${winnerId}`);
+    console.log(`🏆 Partie ${game.roomId} terminée. Gagnant : ${winnerId}`);
 
     // Supprime la partie de la mémoire après quelques secondes
     setTimeout(() => {
@@ -394,9 +503,6 @@ export class GameEngineService {
     }, 5000);
   }
 
-  /**
-   * Broadcast l'état complet du jeu à tous les clients de la room
-   */
   private broadcastGameState(roomId: string) {
     const game = this.games.get(roomId);
     if (!game || !this.server) return;
@@ -410,6 +516,24 @@ export class GameEngineService {
     };
 
     this.server.to(roomId).emit('game:stateUpdate', state);
+  }
+
+  /**
+   * Nettoie l'état d'une partie (abandon/déconnexion)
+   */
+  cleanupGame(roomId: string) {
+    const game = this.games.get(roomId);
+    if (!game) {
+      console.log(
+        `⚠️ Tentative de nettoyage d'une partie inexistante: ${roomId}`,
+      );
+      return;
+    }
+
+    console.log(`🧹 Nettoyage de la partie ${roomId}`);
+
+    // Supprime la partie de la mémoire
+    this.games.delete(roomId);
   }
 
   /**

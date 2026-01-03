@@ -17,12 +17,12 @@ export class GameController {
   }
 
   /**
-   * GET /games/:id
-   * Récupère une partie spécifique par son ID
+   * GET /games/room/:roomId
+   * Récupère une partie par son roomId (doit être avant :id)
    */
-  @Get(':id')
-  async getGameById(@Param('id') id: string) {
-    return await this.gameService.getGameById(parseInt(id));
+  @Get('room/:roomId')
+  async getGameByRoomId(@Param('roomId') roomId: string) {
+    return await this.gameService.getGameByRoomId(roomId);
   }
 
   /**
@@ -35,6 +35,15 @@ export class GameController {
   }
 
   /**
+   * GET /games/:id
+   * Récupère une partie spécifique par son ID (doit être en dernier)
+   */
+  @Get(':id')
+  async getGameById(@Param('id') id: string) {
+    return await this.gameService.getGameById(parseInt(id));
+  }
+
+  /**
    * POST /games/create
    * Crée une nouvelle partie
    * Body: { player1Id: number }
@@ -42,7 +51,7 @@ export class GameController {
   @Post('create')
   async createGame(@Body() body: { player1Id: number }) {
     // Génère un roomId unique
-    const roomId = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const roomId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     return await this.gameService.createGame(body.player1Id, roomId);
   }
 }

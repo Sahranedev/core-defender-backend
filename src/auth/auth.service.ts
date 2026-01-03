@@ -24,7 +24,6 @@ export class AuthService {
     // Vérifier si l'utilisateur est déjà inscrit
 
     const user = await this.usersService.findByEmail(email);
-    console.log(user);
 
     if (!user) throw new NotFoundException('User not found');
     // Comparer le mot de passe

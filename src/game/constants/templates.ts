@@ -1,12 +1,12 @@
 export const GAME_CONFIG = {
-  BOARD_WIDTH: 800,
-  BOARD_HEIGHT: 600,
+  BOARD_WIDTH: 1100,
+  BOARD_HEIGHT: 650,
 
   INITIAL_RESOURCES: 1000,
 
   CORE_HP: 1000,
-  CORE_WIDTH: 60,
-  CORE_HEIGHT: 60,
+  CORE_WIDTH: 70,
+  CORE_HEIGHT: 70,
 };
 
 export const DEFENSE_TEMPLATES = {
@@ -20,11 +20,11 @@ export const DEFENSE_TEMPLATES = {
 
   TURRET: {
     name: 'Tourelle',
-    hp: 300,
-    cost: 200,
+    hp: 200,
+    cost: 350,
     damage: 25,
-    fireRate: 1000, // millisecondes entre chaque tir
-    range: 200, // portée en pixels
+    fireRate: 2000, // millisecondes entre chaque tir (2 secondes)
+    range: 950, // Portée longue - couvre presque toute la map
     width: 50,
     height: 50,
   },

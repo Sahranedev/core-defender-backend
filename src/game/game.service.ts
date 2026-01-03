@@ -190,4 +190,26 @@ export class GameService {
       },
     });
   }
+
+  /**
+   * Annule une partie en attente (le créateur est parti avant qu'un adversaire ne rejoigne)
+   */
+  async cancelGame(gameId: number) {
+    return await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        status: 'cancelled',
+        finishedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Supprime une partie (nettoyage)
+   */
+  async deleteGame(gameId: number) {
+    return await this.prisma.game.delete({
+      where: { id: gameId },
+    });
+  }
 }
