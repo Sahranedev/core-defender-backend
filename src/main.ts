@@ -13,7 +13,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  await app.listen(5000, '0.0.0.0');
+  await app.listen(3000, '0.0.0.0');
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
 bootstrap().catch((err) => {
