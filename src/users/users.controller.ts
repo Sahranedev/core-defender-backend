@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
-import type { User } from '../generated/prisma';
+import type { User } from '@prisma/client';
 
 @Controller('users')
 export class UsersController {
