@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import {
   GAME_CONFIG,
   DEFENSE_TEMPLATES,
+  DEFENSE_LIMITS,
   PROJECTILE_TEMPLATES,
   DefenseType,
   ProjectileType,
@@ -128,6 +129,19 @@ export class GameEngineService {
     const template = DEFENSE_TEMPLATES[defenseType];
     if (!template) return { success: false, error: 'Type de défense invalide' };
 
+    // Vérification de la limite de défenses par type
+    const playerDefensesOfType = game.defenses.filter(
+      (d) => d.playerId === playerId && d.type === defenseType,
+    ).length;
+    const maxAllowed = DEFENSE_LIMITS[defenseType] ?? 10;
+
+    if (playerDefensesOfType >= maxAllowed) {
+      return {
+        success: false,
+        error: `Limite atteinte (${maxAllowed} ${template.name}s maximum)`,
+      };
+    }
+
     // Validation de la zone de placement
     const isPlayer1 = player.corePosition.x < GAME_CONFIG.BOARD_WIDTH / 2;
     const ZONE_PLAYER1_END = 480;
@@ -228,7 +242,7 @@ export class GameEngineService {
   }
 
   private startGameLoop(roomId: string) {
-    const FPS = 60;
+    const FPS = 40;
     const FRAME_TIME = 1000 / FPS;
 
     const loop = () => {
@@ -255,10 +269,10 @@ export class GameEngineService {
     const now = Date.now();
     game.lastUpdate = now;
 
-    // Régénération passive de ressources par secondes
+    // Régénération passive de ressources par seconde
     if (now - game.lastResourceGeneration >= 1000) {
       game.players.forEach((player) => {
-        player.resources += 200;
+        player.resources += GAME_CONFIG.RESOURCE_PER_SECOND;
       });
       game.lastResourceGeneration = now;
     }

@@ -5,13 +5,13 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  OnGatewayInit, // ← AJOUT
+  OnGatewayInit,
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
-import { GameEngineService } from './game-engine.service'; // ← AJOUT
+import { GameEngineService } from './game-engine.service';
 import { GAME_TEMPLATES } from './constants/templates';
 
 @WebSocketGateway({
@@ -79,7 +79,7 @@ export class GameGateway
       return;
     }
 
-    // Partie déjà terminée ou annulée → on nettoie simplement
+    // Partie déjà terminée ou annulée -> on nettoie simplement
     if (game.status === 'finished' || game.status === 'cancelled') {
       this.playerConnections.delete(client.id);
       return;

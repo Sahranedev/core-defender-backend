@@ -30,11 +30,11 @@ model Game {
 
   // Système de parties privées
   isPrivate   Boolean @default(false)
-  privateCode String? @unique // Code court pour rejoindre (ex: "ABC123")
+  privateCode String? @unique
 
   // Statistiques optionnelles (bonus pour le futur)
   duration       Int? // en secondes
-  player1FinalHP Int? // HP restants du core
+  player1FinalHP Int?
   player2FinalHP Int?
 
   createdAt  DateTime  @default(now())
