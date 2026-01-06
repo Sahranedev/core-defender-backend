@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { jwtConstants } from '../auth/constants';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
       signOptions: { expiresIn: '60s' },
     }),
   ],
-  providers: [AuthService, ConfigService],
+  providers: [AuthService, ConfigService, PrismaService],
   controllers: [AuthController],
   exports: [AuthService],
 })

@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { SignupDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import type { Response } from 'express';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,5 +36,19 @@ export class AuthController {
   @Post('signup')
   signUp(@Body() signUpDto: SignupDto) {
     return this.authService.signUp(signUpDto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(
+    @Body() verifyEmailDto: VerifyEmailDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.verifyEmail(verifyEmailDto.token);
+    res.cookie('jwt_token', result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 2 * 60 * 60 * 1000, // 2 heures (aligné avec la durée du JWT)
+    });
+    return result;
   }
 }

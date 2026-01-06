@@ -8,16 +8,25 @@ datasource db {
 }
 
 model User {
-  id        Int    @id @default(autoincrement())
-  lastname  String
-  firstname String
-  password  String
-  email     String @unique
+  id         Int     @id @default(autoincrement())
+  lastname   String
+  firstname  String
+  password   String
+  email      String  @unique
+  isVerified Boolean @default(false)
 
   gamesAsPlayer1 Game[] @relation("Player1Games")
   gamesAsPlayer2 Game[] @relation("Player2Games")
 
   @@map("user")
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Game {
