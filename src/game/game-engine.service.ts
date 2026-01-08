@@ -242,7 +242,7 @@ export class GameEngineService {
   }
 
   private startGameLoop(roomId: string) {
-    const FPS = 40;
+    const FPS = 25;
     const FRAME_TIME = 1000 / FPS;
 
     const loop = () => {
