@@ -10,20 +10,18 @@ import * as bcrypt from 'bcrypt';
 import { SignupDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
-  private readonly resend: Resend;
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private prisma: PrismaService,
-  ) {
-    this.resend = new Resend(process.env.RESEND_API_KEY);
-  }
+    private emailService: EmailService,
+  ) {}
 
   async signIn(SignInDto: SignInDto) {
     const { email, password } = SignInDto;
@@ -79,15 +77,9 @@ export class AuthService {
         token,
       },
     });
-    await this.resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
-      to: email,
-      subject: 'Vérification de votre email',
-      html: `
-        <p>Veuillez cliquer sur le lien suivant pour vérifier votre email:</p>
-        <a href="${process.env.FRONTEND_URL}/verify-email?token=${token}">Vérifier mon email</a>
-      `,
-    });
+
+    // Utilise le service email avec template MJML
+    await this.emailService.sendVerificationEmail(email, token);
 
     return token;
   }

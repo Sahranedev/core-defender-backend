@@ -1,0 +1,100 @@
+<mjml>
+  <mj-head>
+    <mj-title>Vérification de votre email - Core Defender</mj-title>
+    <mj-preview>Confirmez votre email pour accéder à Core Defender</mj-preview>
+    
+    <mj-attributes>
+      <mj-all font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" />
+      <mj-text font-size="16px" color="#e2e8f0" line-height="1.6" />
+      <mj-button background-color="#3b82f6" color="#ffffff" font-size="16px" font-weight="600" border-radius="8px" />
+    </mj-attributes>
+  </mj-head>
+
+  <mj-body background-color="#0f172a">
+    
+    <!-- Header -->
+    <mj-section background-color="#1e293b" padding="40px 20px 30px">
+      <mj-column>
+        <mj-text align="center" font-size="28px" font-weight="bold" color="#ffffff" letter-spacing="2px">
+          CORE DEFENDER
+        </mj-text>
+        <mj-text align="center" font-size="12px" color="#64748b" padding-top="5px" letter-spacing="1px">
+          STRATÉGIE EN TEMPS RÉEL
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Ligne accent -->
+    <mj-section padding="0">
+      <mj-column>
+        <mj-divider border-width="2px" border-color="#3b82f6" padding="0" />
+      </mj-column>
+    </mj-section>
+
+    <!-- Corps principal -->
+    <mj-section background-color="#1e293b" padding="50px 40px">
+      <mj-column>
+        
+        <!-- Titre -->
+        <mj-text align="center" font-size="24px" font-weight="600" color="#ffffff" padding-bottom="20px">
+          Vérifiez votre adresse email
+        </mj-text>
+
+        <!-- Message -->
+        <mj-text color="#94a3b8" padding-bottom="35px" align="center">
+          Merci de vous être inscrit sur Core Defender.<br/>
+          Cliquez sur le bouton ci-dessous pour activer votre compte.
+        </mj-text>
+
+        <!-- Bouton CTA -->
+        <mj-button 
+          href="{{VERIFICATION_URL}}" 
+          background-color="#3b82f6" 
+          color="#ffffff"
+          font-size="16px"
+          font-weight="600"
+          padding="0"
+          inner-padding="16px 48px"
+          border-radius="8px"
+        >
+          Confirmer mon email
+        </mj-button>
+
+        <!-- Lien alternatif -->
+        <mj-text align="center" font-size="13px" color="#64748b" padding-top="35px">
+          Si le bouton ne fonctionne pas, copiez ce lien :
+        </mj-text>
+        <mj-text align="center" font-size="12px" color="#60a5fa" padding-top="8px">
+          {{VERIFICATION_URL}}
+        </mj-text>
+
+      </mj-column>
+    </mj-section>
+
+    <!-- Séparateur -->
+    <mj-section background-color="#1e293b" padding="0 40px">
+      <mj-column>
+        <mj-divider border-width="1px" border-color="#334155" />
+      </mj-column>
+    </mj-section>
+
+    <!-- Note de sécurité -->
+    <mj-section background-color="#1e293b" padding="25px 40px 40px">
+      <mj-column>
+        <mj-text align="center" font-size="13px" color="#64748b">
+          Si vous n'avez pas créé de compte, ignorez simplement cet email.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- Footer -->
+    <mj-section background-color="#0f172a" padding="30px 20px">
+      <mj-column>
+        <mj-text align="center" font-size="12px" color="#475569">
+          © 2026 Core Defender — Tous droits réservés
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+  </mj-body>
+</mjml>
